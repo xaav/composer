@@ -28,7 +28,6 @@ class Composer
     public function __construct()
     {
         $this->addRepository('Packagist', array('composer' => 'http://packagist.org'));
-        $this->addRepository('Platform', array('platform' => ''));
     }
 
     public function addDownloader($type, $downloader)
@@ -88,9 +87,6 @@ class Composer
 
         case 'git':
             return new GitRepository($spec['url']);
-
-        case 'platform':
-            return new PlatformRepository;
 
         case 'composer':
             return new ComposerRepository($spec['url']);

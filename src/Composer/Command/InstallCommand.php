@@ -12,6 +12,14 @@
 
 namespace Composer\Command;
 
+use Composer\DependencyResolver\Pool;
+use Composer\DependencyResolver\Request;
+use Composer\DependencyResolver\DefaultPolicy;
+use Composer\DependencyResolver\Solver;
+use Composer\Repository\PlatformRepository;
+use Composer\Package\MemoryPackage;
+use Composer\Package\LinkConstraint\VersionConstraint;
+
 /**
  * @author Jordi Boggiano <j.boggiano@seld.be>
  */
@@ -29,26 +37,44 @@ class InstallCommand
             $composer->addRepository($name, $spec);
         }
 
-        // TODO this should just do dependency solving based on all repositories
-        $packages = array();
+        $pool = new Pool;
+
+        $repoInstalled = new PlatformRepository;
+        $pool->addRepository($repoInstalled);
+        // TODO check the lock file to see what's currently installed
+        // $repoInstalled->addPackage(new MemoryPackage('C', '1.0'));
+
         foreach ($composer->getRepositories() as $repository) {
-            $packages[] = $repository->getPackages();
+            $pool->addRepository($repository);
         }
-        $packages = call_user_func_array('array_merge', $packages);
+
+        $request = new Request($pool);
+
+        // TODO there should be an update flag or dedicated update command
+        // TODO check lock file to remove packages that disappeared from the requirements
+        foreach ($config['require'] as $name => $version) {
+            if ('latest' === $version) {
+                $request->install($name);
+            } else {
+                preg_match('#^([>=<~]*)([\d.]+.*)$#', $version, $match);
+                if (!$match[1]) {
+                    $match[1] = '=';
+                }
+                $constraint = new VersionConstraint($match[1], $match[2]);
+                $request->install($name, $constraint);
+            }
+        }
+
+        $policy = new DefaultPolicy;
+        $solver = new Solver($policy, $pool, $repoInstalled);
+        $result = $solver->solve($request);
+
+        var_dump($result);die;
 
         $lock = array();
 
-        // TODO this should use the transaction returned by the solver
-        foreach ($config['require'] as $name => $version) {
-            foreach ($packages as $pkg) {
-                if (strtolower($pkg->getName()) === strtolower($name)) {
-                    $package = $pkg;
-                    break;
-                }
-            }
-            if (!isset($package)) {
-                throw new \UnexpectedValueException('Could not find package '.$name.' in any of your repositories');
-            }
+        // TODO fix this
+        foreach ($result as $action) {
             $downloader = $composer->getDownloader($package->getSourceType());
             $installer = $composer->getInstaller($package->getType());
             $lock[$name] = $installer->install($package, $downloader);

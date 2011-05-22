@@ -575,6 +575,8 @@ class Solver
         $installRecommended = 0;
         $this->runSat(true, $installRecommended);
 
+        $this->printRules();
+
         //findrecommendedsuggested(solv);
         //solver_prepare_solutions(solv);
 
